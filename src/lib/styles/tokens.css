@@ -1,0 +1,95 @@
+/* Argus design tokens — see DESIGN.md §2. */
+
+:root {
+  /* Surfaces */
+  --color-bg-base:        #09090D;
+  --color-bg-surface:     #111218;
+  --color-bg-elevated:    #191B24;
+  --color-bg-overlay:     #1E2130;
+
+  /* Borders */
+  --color-border-subtle:  #1E2030;
+  --color-border-default: #2A2D3A;
+  --color-border-active:  #3D4157;
+
+  /* Text */
+  --color-text-primary:   #E4DFCF;
+  --color-text-secondary: #8B8578;
+  --color-text-tertiary:  #524F4A;
+  --color-text-inverse:   #0A0B0E;
+
+  /* Brass — primary accent */
+  --color-brass:          #C8922A;
+  --color-brass-dim:      #7A5515;
+  --color-brass-glow:     #E5B54E;
+
+  /* Status */
+  --color-active:         #3EC87A;
+  --color-active-dim:     #1B5C38;
+  --color-paused:         #C8922A;
+  --color-synthesizing:   #7B6CF0;
+  --color-synthesizing-dim:#30275A;
+  --color-interrupted:    #C24444;
+  --color-obsidian:       #4E8BC0;
+
+  /* Fonts */
+  --font-display: 'Syne', system-ui, sans-serif;
+  --font-body:    'DM Sans', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', 'Menlo', monospace;
+
+  /* Type scale */
+  --size-2xs:  10px;
+  --size-xs:   11px;
+  --size-sm:   12px;
+  --size-base: 13px;
+  --size-md:   14px;
+  --size-lg:   16px;
+  --size-xl:   18px;
+  --size-2xl:  22px;
+  --size-3xl:  28px;
+  --size-4xl:  42px;
+
+  --leading-tight:  1.2;
+  --leading-normal: 1.5;
+  --leading-loose:  1.7;
+
+  --tracking-tight:  -0.03em;
+  --tracking-normal: -0.01em;
+  --tracking-wide:    0.06em;
+  --tracking-wider:   0.12em;
+
+  /* Spacing */
+  --space-1:   4px;
+  --space-2:   8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Radius */
+  --radius-sm:  3px;
+  --radius-md:  6px;
+  --radius-lg: 10px;
+
+  /* Shadow & glow */
+  --shadow-surface:    0 1px 3px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.6);
+  --shadow-elevated:   0 4px 16px rgba(0,0,0,0.7), 0 1px 4px rgba(0,0,0,0.5);
+  --shadow-float:      0 12px 40px rgba(0,0,0,0.85), 0 2px 8px rgba(0,0,0,0.6);
+  --shadow-glow-brass:  0 0 20px rgba(200,146,42,0.15);
+  --shadow-glow-active: 0 0 16px rgba(62,200,122,0.20);
+
+  /* Motion */
+  --duration-instant:    80ms;
+  --duration-fast:      120ms;
+  --duration-normal:    200ms;
+  --duration-slow:      320ms;
+  --duration-deliberate: 500ms;
+
+  --ease-default: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring:  cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-linear:  linear;
+}

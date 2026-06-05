@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+.svelte-kit/
+build/
+dist/
+src-tauri/target/
+src-tauri/gen/
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.log
+*.swp
+
+# Local env
+.env
+.env.local
+.env.*.local
+
+# Tauri secrets
+src-tauri/.cargo/
+
+# Working handoff doc, local-only
+handout.md

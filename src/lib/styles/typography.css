@@ -1,0 +1,6 @@
+/* Font loading.
+   For dev we point at Google Fonts CSS so the app boots without bundled files.
+   For production these would be replaced with @font-face declarations pointing
+   at files under src-tauri/Resources/fonts/. */
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&family=Syne:wght@500;600;700;800&display=swap');

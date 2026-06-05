@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "argus dev: screenpipe stub - not bundled"
+exit 1

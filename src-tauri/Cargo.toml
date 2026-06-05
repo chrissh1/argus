@@ -1,0 +1,61 @@
+[package]
+name = "argus"
+version = "0.1.0"
+description = "Argus — privacy-first deep work capture for Obsidian"
+authors = ["Christopher Shang"]
+edition = "2021"
+rust-version = "1.75"
+
+[lib]
+name = "argus_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.1", features = ["macos-private-api", "tray-icon", "image-png"] }
+tauri-plugin-dialog = "2.0"
+tauri-plugin-fs = "2.0"
+tauri-plugin-shell = "2.0"
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2.0"
+anyhow = "1"
+
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+futures = "0.3"
+
+rusqlite = { version = "0.32", features = ["bundled"] }
+sqlite-vec = "0.1"
+zerocopy = "0.7"
+
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+
+notify = "7"
+notify-debouncer-full = "0.4"
+
+chrono = { version = "0.4", features = ["serde"] }
+sha2 = "0.10"
+hex = "0.4"
+uuid = { version = "1", features = ["v4", "serde"] }
+dirs = "5"
+walkdir = "2"
+nix = { version = "0.29", features = ["signal", "process"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+once_cell = "1"
+open = "5"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = 3
+strip = true

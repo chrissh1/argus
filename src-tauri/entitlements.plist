@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+    <key>com.apple.security.device.camera</key>
+    <false/>
+    <key>com.apple.security.app-sandbox</key>
+    <false/>
+    <key>com.apple.security.network.client</key>
+    <true/>
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>Argus records your screen only during sessions you start, to build your Obsidian knowledge notes.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Argus records audio only during sessions you start, to transcribe spoken context into your notes.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Argus uses Accessibility events to detect the focused app, so it can auto-pause for excluded apps.</string>
+</dict>
+</plist>
