@@ -33,7 +33,7 @@
   --color-obsidian:       #B1D1EC;   /* Vault-related actions — ice blue */
 
   /* Fonts */
-  --font-display: 'Syne', system-ui, sans-serif;
+  --font-display: 'Brassie', 'Montserrat', 'Syne', system-ui, sans-serif;
   --font-body:    'DM Sans', system-ui, sans-serif;
   --font-mono:    'JetBrains Mono', 'Menlo', monospace;
 

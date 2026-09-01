@@ -3,4 +3,4 @@
    For production these would be replaced with @font-face declarations pointing
    at files under src-tauri/Resources/fonts/. */
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&family=Syne:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&family=Montserrat:wght@600;700;800;900&family=Syne:wght@500;600;700;800&display=swap');

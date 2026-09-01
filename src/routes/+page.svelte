@@ -145,11 +145,11 @@
 
   /* Bold solid display title (no gradient) */
   .app-title {
-    font-family: var(--font-display);
-    font-size: 58px;
-    font-weight: 800;
+    font-family: 'Brassie', 'Montserrat', var(--font-display);
+    font-size: 60px;
+    font-weight: 900;
     line-height: 1;
-    letter-spacing: 0.18em;
+    letter-spacing: 0.16em;
     color: var(--color-text-primary);
     margin: 0 0 28px;
     text-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
