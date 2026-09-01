@@ -47,8 +47,6 @@ pub fn run() {
 
             tray::install(app)?;
 
-            // Dashboard window is created hidden in config; only menubar shows initially.
-            // The user opens the dashboard explicitly from the tray.
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -75,6 +73,14 @@ pub fn run() {
             commands::open_dashboard,
             commands::open_in_obsidian,
         ])
-        .run(context)
-        .expect("failed to launch Argus");
+        .build(context)
+        .expect("failed to build Argus")
+        .run(|app_handle, event| {
+            if let tauri::RunEvent::Reopen { .. } = event {
+                if let Some(w) = app_handle.get_webview_window("dashboard") {
+                    let _ = w.show();
+                    let _ = w.set_focus();
+                }
+            }
+        });
 }
