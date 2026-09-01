@@ -172,17 +172,24 @@
 
   .app-title {
     font-family: var(--font-display);
-    font-size: 36px;
+    font-size: 52px;
     font-weight: 800;
-    letter-spacing: 0.12em;
-    color: var(--color-text-primary);
-    margin: 0 0 6px;
-    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+    line-height: 1.1;
+    letter-spacing: 0.16em;
+    color: var(--color-brass);
+    background: linear-gradient(180deg, #FFFFFF 15%, var(--color-brass) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin: 0 0 10px;
+    filter: drop-shadow(0 4px 24px rgba(196, 180, 129, 0.30)) drop-shadow(0 2px 10px rgba(0, 0, 0, 0.8));
   }
 
   .app-tagline {
     font-family: var(--font-body);
-    font-size: var(--size-base);
+    font-size: var(--size-md);
+    font-weight: 400;
+    letter-spacing: 0.02em;
     color: var(--color-text-secondary);
     margin: 0;
   }
