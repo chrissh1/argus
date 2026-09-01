@@ -1,6 +1,7 @@
 <script lang="ts">
   /** Lightweight Lucide-style line icons, inline SVG. */
   type Name =
+    | 'home'
     | 'clock-history'
     | 'brain-circuit'
     | 'aperture'
@@ -41,7 +42,10 @@
   aria-hidden="true"
   class="icon"
 >
-  {#if name === 'clock-history'}
+  {#if name === 'home'}
+    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    <polyline points="9 22 9 12 15 12 15 22" />
+  {:else if name === 'clock-history'}
     <circle cx="12" cy="12" r="9" />
     <polyline points="12,7 12,12 16,14" />
   {:else if name === 'brain-circuit'}

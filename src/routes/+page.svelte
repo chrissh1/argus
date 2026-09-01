@@ -5,19 +5,10 @@
   import SynthesisProgress from '$lib/components/session/SynthesisProgress.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
-  import ArgusEye from '$lib/components/eye/ArgusEye.svelte';
 
   const sessions = $derived(sessionStore.state.history);
   const cur = $derived(sessionStore.state.current);
   const status = $derived(cur?.record.status ?? 'idle');
-
-  const eyeState = $derived(
-    status === 'active' ? 'active'
-    : status === 'paused' ? 'paused'
-    : status === 'synthesizing' ? 'synthesizing'
-    : status === 'interrupted' ? 'interrupted'
-    : 'idle'
-  );
 
   async function startSession() {
     try {
@@ -34,28 +25,18 @@
 </script>
 
 <div class="main-page">
-  <!-- Hero Header Section -->
+  <!-- Centered Hero Section (Lowered & Focused) -->
   <section class="hero-section">
-    <div class="logo-wrapper">
-      <ArgusEye state={eyeState} size={84} />
-    </div>
+    <h1 class="app-title">ARGUS</h1>
 
-    <div class="hero-text">
-      <h1 class="app-title">ARGUS</h1>
-      <p class="app-tagline">Privacy-First Deep Work Capture & Knowledge Synthesizer</p>
-    </div>
-
-    <!-- Centered Primary Action Area -->
+    <!-- Centered Action Area -->
     <div class="cta-container">
       {#if status === 'idle' || !cur}
         <button class="hero-start-btn" type="button" onclick={startSession}>
           <span class="btn-icon-circle">
-            <Icon name="play" size={18} />
+            <Icon name="play" size={16} />
           </span>
-          <span class="btn-text-block">
-            <span class="btn-title">Start Deep Work Session</span>
-            <span class="btn-subtitle">Captures screen & voice · Synthesizes to Obsidian</span>
-          </span>
+          <span class="btn-title">Start Session</span>
         </button>
       {:else if status === 'active'}
         <div class="active-session-card">
@@ -113,7 +94,7 @@
     </div>
   </section>
 
-  <!-- Recent Sessions Section Below -->
+  <!-- Compact Session History Section Below -->
   <section class="sessions-section">
     <div class="section-header">
       <div class="section-heading-group">
@@ -129,8 +110,7 @@
         <div class="loading-placeholder">Loading sessions…</div>
       {:else if sessions.length === 0}
         <div class="empty-state">
-          <p class="empty-title">No sessions recorded yet</p>
-          <p class="empty-desc">When you complete a deep-work session, your knowledge digests will appear here.</p>
+          <p class="empty-title">No sessions yet</p>
         </div>
       {:else}
         {#each sessions as s (s.id)}
@@ -146,58 +126,39 @@
     display: flex;
     flex-direction: column;
     min-height: 100%;
-    padding: 32px 40px;
-    max-width: 960px;
+    padding: 0 48px 48px;
+    max-width: 860px;
     margin: 0 auto;
   }
 
-  /* Hero Section */
+  /* Hero Section: lowered with comfortable vertical breathing room */
   .hero-section {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     text-align: center;
-    padding: 24px 0 36px;
+    padding-top: 88px;
+    padding-bottom: 56px;
     border-bottom: 1px solid var(--color-border-subtle);
   }
 
-  .logo-wrapper {
-    margin-bottom: 16px;
-    filter: drop-shadow(0 4px 20px rgba(0, 0, 0, 0.4));
-  }
-
-  .hero-text {
-    margin-bottom: 24px;
-  }
-
+  /* Bold solid display title (no gradient) */
   .app-title {
     font-family: var(--font-display);
-    font-size: 52px;
+    font-size: 58px;
     font-weight: 800;
-    line-height: 1.1;
-    letter-spacing: 0.16em;
-    color: var(--color-brass);
-    background: linear-gradient(180deg, #FFFFFF 15%, var(--color-brass) 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    margin: 0 0 10px;
-    filter: drop-shadow(0 4px 24px rgba(196, 180, 129, 0.30)) drop-shadow(0 2px 10px rgba(0, 0, 0, 0.8));
+    line-height: 1;
+    letter-spacing: 0.18em;
+    color: var(--color-text-primary);
+    margin: 0 0 28px;
+    text-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
   }
 
-  .app-tagline {
-    font-family: var(--font-body);
-    font-size: var(--size-md);
-    font-weight: 400;
-    letter-spacing: 0.02em;
-    color: var(--color-text-secondary);
-    margin: 0;
-  }
-
-  /* Hero Call-To-Action */
+  /* Centered Action Button Area */
   .cta-container {
     width: 100%;
-    max-width: 440px;
+    max-width: 280px;
     display: flex;
     justify-content: center;
   }
@@ -205,46 +166,41 @@
   .hero-start-btn {
     display: flex;
     align-items: center;
-    gap: 16px;
+    justify-content: center;
+    gap: 12px;
     width: 100%;
-    padding: 14px 22px;
+    height: 48px;
+    padding: 0 24px;
     background: var(--color-brass);
     color: var(--color-text-inverse);
     border: none;
     border-radius: var(--radius-md);
     cursor: pointer;
-    box-shadow: 0 4px 20px rgba(196, 180, 129, 0.25), 0 2px 6px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 4px 18px rgba(196, 180, 129, 0.22), 0 2px 6px rgba(0, 0, 0, 0.4);
     transition: all var(--duration-fast) var(--ease-default);
-    text-align: left;
   }
 
   .hero-start-btn:hover {
     transform: translateY(-1px);
     filter: brightness(1.08);
-    box-shadow: 0 6px 28px rgba(196, 180, 129, 0.35), 0 2px 8px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 6px 24px rgba(196, 180, 129, 0.32), 0 2px 8px rgba(0, 0, 0, 0.5);
   }
 
   .hero-start-btn:active {
     transform: translateY(0);
-    filter: brightness(0.95);
+    filter: brightness(0.96);
   }
 
   .btn-icon-circle {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
+    width: 26px;
+    height: 26px;
     border-radius: 50%;
-    background: rgba(24, 25, 31, 0.2);
+    background: rgba(24, 25, 31, 0.22);
     color: var(--color-text-inverse);
     flex-shrink: 0;
-  }
-
-  .btn-text-block {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
   }
 
   .btn-title {
@@ -254,19 +210,13 @@
     letter-spacing: -0.01em;
   }
 
-  .btn-subtitle {
-    font-family: var(--font-body);
-    font-size: var(--size-xs);
-    opacity: 0.85;
-  }
-
-  /* Active / Paused / Synth Card */
+  /* Active / Paused / Synthesizing Card */
   .active-session-card {
     display: flex;
     flex-direction: column;
     align-items: center;
     width: 100%;
-    padding: 20px 24px;
+    padding: 18px 22px;
     background: var(--color-bg-surface);
     border: 1px solid var(--color-border-default);
     border-radius: var(--radius-md);
@@ -285,7 +235,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
 
   .status-label {
@@ -321,34 +271,34 @@
   }
 
   .timer-display {
-    font-size: 28px;
-    margin-bottom: 16px;
+    font-size: 26px;
+    margin-bottom: 14px;
   }
 
   .hero-controls {
     display: flex;
-    gap: 12px;
+    gap: 10px;
     width: 100%;
     justify-content: center;
   }
 
   .synth-waiting {
     font-family: var(--font-body);
-    font-size: var(--size-sm);
+    font-size: var(--size-xs);
     color: var(--color-text-secondary);
-    margin: 8px 0 0;
+    margin: 6px 0 0;
   }
 
-  /* Sessions List Section */
+  /* Compact Session History Section Below */
   .sessions-section {
-    padding-top: 28px;
+    padding-top: 24px;
   }
 
   .section-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
   }
 
   .section-heading-group {
@@ -363,13 +313,13 @@
     font-weight: 600;
     letter-spacing: var(--tracking-wide);
     text-transform: uppercase;
-    color: var(--color-text-secondary);
+    color: var(--color-text-tertiary);
   }
 
   .session-count-badge {
     font-family: var(--font-mono);
     font-size: var(--size-2xs);
-    padding: 1px 6px;
+    padding: 0 6px;
     background: var(--color-bg-elevated);
     border: 1px solid var(--color-border-subtle);
     border-radius: 10px;
@@ -379,11 +329,13 @@
   .session-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
+    max-height: 320px;
+    overflow-y: auto;
   }
 
   .loading-placeholder, .empty-state {
-    padding: 36px 16px;
+    padding: 24px 16px;
     text-align: center;
     color: var(--color-text-tertiary);
     background: var(--color-bg-surface);
@@ -392,14 +344,6 @@
   }
 
   .empty-title {
-    font-family: var(--font-body);
-    font-size: var(--size-base);
-    color: var(--color-text-secondary);
-    margin: 0 0 4px;
-    font-weight: 500;
-  }
-
-  .empty-desc {
     font-family: var(--font-body);
     font-size: var(--size-xs);
     color: var(--color-text-tertiary);

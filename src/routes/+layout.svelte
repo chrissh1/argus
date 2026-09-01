@@ -26,7 +26,7 @@
   });
 
   const nav = [
-    { id: 'sessions',   path: '/',                icon: 'clock-history',  label: 'Session History' },
+    { id: 'home',       path: '/',                icon: 'home',           label: 'Home' },
     { id: 'llm',        path: '/settings/llm/',    icon: 'brain-circuit',  label: 'LLM Config' },
     { id: 'capture',    path: '/settings/capture/',icon: 'aperture',       label: 'Capture Settings' },
     { id: 'vault',      path: '/settings/vault/',  icon: 'book-open',      label: 'Vault Settings' },
