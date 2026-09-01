@@ -66,10 +66,6 @@
         {/each}
       </nav>
       <div class="grow"></div>
-      <div class="sep" aria-hidden="true"></div>
-      <IconButton label="Settings" onclick={() => goto('/settings/llm/')}>
-        {#snippet children()}<Icon name="settings" size={16} />{/snippet}
-      </IconButton>
     </aside>
 
     <main class="content" data-tauri-drag-region>
