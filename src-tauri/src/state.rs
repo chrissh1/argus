@@ -76,8 +76,9 @@ impl AppState {
             indexing: Mutex::new(IndexingProgress::default()),
         };
 
-        // If a vault is already configured, attach a watcher so the index stays warm.
+        // If a vault is already configured, clean leftover crash temp files and attach watcher.
         if let Some(path) = settings::get_string(&state.db, "vault_path")? {
+            crate::vault::writer::clean_orphaned_temp_files(std::path::Path::new(&path));
             let settings = settings::get_all(&state.db)?;
             let ollama = Arc::new(OllamaClient::new(&settings.ollama_host));
             let watcher = VaultWatcher::spawn(

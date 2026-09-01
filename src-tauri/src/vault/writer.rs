@@ -127,6 +127,14 @@ struct TempHandle {
     file: std::fs::File,
 }
 
+impl Drop for TempHandle {
+    fn drop(&mut self) {
+        // If rename() succeeded, path no longer exists (remove_file fails silently).
+        // If an error or panic occurred mid-write, this cleans up the temporary file immediately.
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
 fn tempfile_in(dir: &Path) -> ArgusResult<TempHandle> {
     let uniq = uuid::Uuid::new_v4().simple().to_string();
     let path = dir.join(format!(".argus-tmp-{uniq}"));
@@ -135,6 +143,22 @@ fn tempfile_in(dir: &Path) -> ArgusResult<TempHandle> {
         .write(true)
         .open(&path)?;
     Ok(TempHandle { path, file })
+}
+
+/// Sweep and delete any leftover `.argus-tmp-*` files from prior system crashes.
+pub fn clean_orphaned_temp_files(vault_root: &Path) {
+    if !vault_root.exists() {
+        return;
+    }
+    for entry in walkdir::WalkDir::new(vault_root).into_iter().filter_map(Result::ok) {
+        if entry.file_type().is_file() {
+            if let Some(name) = entry.file_name().to_str() {
+                if name.starts_with(".argus-tmp-") {
+                    let _ = std::fs::remove_file(entry.path());
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -154,5 +178,22 @@ mod tests {
         let doc = "# Title\n\nbody only\n";
         let out = insert_under_heading(doc, "New", "content");
         assert!(out.contains("## New\n\ncontent"));
+    }
+
+    #[test]
+    fn tempfile_cleaned_on_drop() {
+        let tmp_dir = std::env::temp_dir().join(format!("argus_drop_test_{}", uuid::Uuid::new_v4().simple()));
+        std::fs::create_dir_all(&tmp_dir).unwrap();
+
+        let temp_path;
+        {
+            let handle = tempfile_in(&tmp_dir).unwrap();
+            temp_path = handle.path.clone();
+            assert!(temp_path.exists());
+            // handle goes out of scope here without rename -> Drop runs
+        }
+        assert!(!temp_path.exists(), "temp file should be deleted on drop");
+
+        let _ = std::fs::remove_dir_all(tmp_dir);
     }
 }
