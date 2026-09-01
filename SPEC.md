@@ -102,7 +102,14 @@ Owns the full lifecycle of a recording session.
 
 ### 3.2 Screenpipe Integration
 
-Screenpipe binary is **bundled inside the Tauri app bundle** at `Contents/Resources/bin/screenpipe`. No user installation required.
+Screenpipe captures screen OCR and audio. The binary is resolved from:
+1. `~/.argus/bin/screenpipe` (on-demand download with pinned versioning and SHA-256 validation).
+2. `Contents/Resources/bin/screenpipe` (bundled app bundle fallback).
+
+**Binary Acquisition & Verification:**
+- Pinned release: `v0.1.72` (architecture-specific for `aarch64-apple-darwin` and `x86_64-apple-darwin`).
+- SHA-256 cryptographic verification prior to execution.
+- Auto-configuration of POSIX permissions (`chmod 0o755`) and macOS quarantine removal (`xattr -d com.apple.quarantine`).
 
 **Process management (Rust):**
 ```rust
@@ -128,48 +135,39 @@ let child = Command::new(screenpipe_path)
 
 ---
 
-### 3.3 Synthesis Engine
+### 3.3 Synthesis Engine (Map-Reduce Architecture)
 
-Runs post-session, async, in a background Rust task. Quality is prioritized over speed — synthesis may take several minutes for long sessions; this is acceptable since it runs after the session ends and does not block the user.
+Runs post-session, async, in a background Rust task. Quality is prioritized over speed.
 
 **Pipeline steps:**
 
 **Step 1 — Temporal context pairing**
-- Read OCR frames and audio transcript chunks from the session's raw SQLite DB
-- Align by timestamp: for each audio segment, find the OCR frame(s) within a ±2s window
-- Produce a merged timeline: `[(timestamp, screen_text, audio_text), ...]`
+- Read OCR frames and audio transcript chunks from the session's raw SQLite DB (`raw.db`).
+- Merge chronologically: OCR and audio segments within a ±2s window are joined into aligned `TimelineRow` entries without dropping non-overlapping frames.
 
-**Step 2 — Concept extraction**
-- Send merged timeline to Ollama in structured chunks (respecting context window size)
-- Prompt instructs the LLM to extract: key concepts, action items, decisions made, technical content, open questions
-- Output: a structured JSON list of concepts with their associated timeline evidence
+**Step 2 — Map-Reduce concept extraction**
+- **Map Phase**: Sessions longer than 10 minutes are sliced into 10-minute chronological windows. Each window is sent to the LLM to extract key activities, decisions, and evidence.
+- **Reduce Phase**: Aggregated window summaries are distilled into a cohesive session title, 2–5 structured concepts, consolidated action items, and open questions.
+- **LLM Abstraction**: Decoupled behind the `LlmClient` trait (Ollama default for local MVP; extensible for BYOK cloud providers in v2).
 
 **Step 3 — Vault candidate retrieval (smart append)**
-- Embed each extracted concept using `nomic-embed-text` via Ollama
-- Query `sqlite-vec` flat index for top-5 most semantically similar existing vault note chunks
-- For each candidate above similarity threshold (default 0.75): read the first 300 lines into LLM context
-- LLM receives: concept, candidate note body, instruction to decide — append to this note or create new?
+- Embed each extracted concept using `nomic-embed-text` via `LlmClient::embed`.
+- Query `sqlite-vec` flat index for top-5 most semantically similar existing vault note chunks.
+- For each candidate above similarity threshold (default 0.75): read candidate note body into context.
+- LLM decides: append to matching note under heading or create new note.
 
 **Step 4 — Content generation**
-- For each append decision: LLM generates the new section/paragraph to add, including wikilinks to related concepts
-- For each new-note decision: LLM generates a full note with YAML frontmatter, headers, and wikilinks
-- Wikilinks are cross-referenced against the vault title index
+- For append decisions: LLM generates the section to add with Obsidian `[[wikilinks]]`.
+- For new note decisions: LLM generates a complete note with YAML frontmatter, headers, and wikilinks.
 
 **Step 5 — Write to vault**
-- Append content written to existing `.md` files at the configured vault path
-- New notes written as new `.md` files
-- All writes are atomic (write to temp file, then rename)
-- Session record updated: `status = complete`, list of affected vault files stored
+- Atomic writes: temporary file write → fsync → rename.
+- Appends target specific H2/H3 headings or EOF.
+- Session record updated in `app.db`.
 
 **Step 6 — In-app summary**
-- Dashboard notification fires via Tauri event
-- Summary screen shows: session title (editable), duration, vault files modified/created, action items extracted
-- "Open in Obsidian" button launches the vault path
-
-**Ollama model configuration:**
-- Default inference model: `llama3.2`
-- Default embedding model: `nomic-embed-text`
-- User can override both in Settings by typing any valid Ollama model name
+- Summary screen displays: session title (editable), duration, affected vault files, and action items.
+- "Open in Obsidian" button launches the vault or specific note.
 
 ---
 

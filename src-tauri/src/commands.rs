@@ -2,8 +2,10 @@
 
 use crate::{
     events,
-    ollama::{ModelTag, Ollama},
+    llm::{ollama::OllamaClient, LlmClient, ModelTag},
+    mock,
     paths,
+    screenpipe::{download_pinned_screenpipe, Screenpipe, ScreenpipeStatus},
     session::{self, SessionRecord, Status},
     settings::{self, ExclusionEntry, Settings},
     state::{AppState, CurrentSession},
@@ -28,7 +30,7 @@ pub async fn session_start(
     let record = session::create(&state.db, settings.data_retention_days)?;
 
     let raw_db = paths::session_raw_db(&record.id)?;
-    let binary = paths::screenpipe_binary(&app)?;
+    let binary = Screenpipe::resolve_binary(Some(&app))?;
 
     if let Err(e) = state.screenpipe.spawn(&binary, &raw_db) {
         session::set_status(&state.db, &record.id, Status::Interrupted)?;
@@ -130,6 +132,14 @@ pub async fn session_stop(
     session::get(&state.db, &session_id)
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CurrentSessionSnapshot {
+    pub record: SessionRecord,
+    pub duration_secs: i64,
+    pub paused_secs: i64,
+}
+
 #[tauri::command]
 pub async fn session_current(
     state: State<'_, Arc<AppState>>,
@@ -163,16 +173,50 @@ pub async fn session_rename(
     state: State<'_, Arc<AppState>>,
     id: String,
     name: String,
-) -> ArgusResult<()> {
-    session::rename(&state.db, &id, &name)
+) -> ArgusResult<SessionRecord> {
+    session::rename(&state.db, &id, &name)?;
+    session::get(&state.db, &id)
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CurrentSessionSnapshot {
-    pub record: SessionRecord,
-    pub duration_secs: i64,
-    pub paused_secs: i64,
+/// Seed a mock session and immediately trigger background synthesis for development testing.
+#[tauri::command]
+pub async fn dev_seed_mock_session(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+    duration_mins: Option<u32>,
+) -> ArgusResult<SessionRecord> {
+    let record = mock::create_mock_session(&state.db, duration_mins.unwrap_or(25))?;
+    events::emit_session_state(&app, Some(&record.id), "synthesizing");
+
+    let app_clone = app.clone();
+    let state_arc = Arc::clone(&*state);
+    let id_clone = record.id.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(e) = synthesis::synthesize(app_clone.clone(), state_arc, id_clone.clone()).await {
+            tracing::error!(?e, session=%id_clone, "mock synthesis failed");
+            events::emit_step(&app_clone, &id_clone, "error", &format!("{e}"), 0, 0);
+        }
+    });
+
+    Ok(record)
+}
+
+// ---------------- Screenpipe Binary Downloader & Status ----------------
+
+#[tauri::command]
+pub async fn screenpipe_status(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+) -> ArgusResult<ScreenpipeStatus> {
+    Ok(state.screenpipe.status(Some(&app)))
+}
+
+#[tauri::command]
+pub async fn screenpipe_download(
+    expected_sha256: Option<String>,
+) -> ArgusResult<String> {
+    let path = download_pinned_screenpipe(expected_sha256.as_deref()).await?;
+    Ok(path.to_string_lossy().to_string())
 }
 
 // ---------------- Settings ----------------
@@ -182,19 +226,13 @@ pub async fn settings_get_all(state: State<'_, Arc<AppState>>) -> ArgusResult<Se
     settings::get_all(&state.db)
 }
 
-#[derive(Debug, Deserialize)]
-pub struct SettingsSet {
-    pub key: String,
-    pub value: String,
-}
-
 #[tauri::command]
 pub async fn settings_set(
     state: State<'_, Arc<AppState>>,
-    payload: SettingsSet,
-) -> ArgusResult<Settings> {
-    settings::set_string(&state.db, &payload.key, &payload.value)?;
-    settings::get_all(&state.db)
+    key: String,
+    value: String,
+) -> ArgusResult<()> {
+    settings::set_string(&state.db, &key, &value)
 }
 
 // ---------------- Vault ----------------
@@ -212,7 +250,7 @@ pub async fn vault_choose(
     settings::set_string(&state.db, "vault_path", &path)?;
     let settings = settings::get_all(&state.db)?;
 
-    let ollama = Arc::new(Ollama::new(&settings.ollama_host));
+    let ollama: Arc<dyn LlmClient> = Arc::new(OllamaClient::new(&settings.ollama_host));
     let watcher = VaultWatcher::spawn(
         p.clone(),
         state.vault_index.clone(),
@@ -264,7 +302,7 @@ async fn run_reindex(
         p.current = 0;
         p.total = 0;
     }
-    let ollama = Ollama::new(&settings.ollama_host);
+    let ollama = OllamaClient::new(&settings.ollama_host);
     let app_for_cb = app.clone();
     let state_for_cb = state.clone();
     let res = state
@@ -318,7 +356,7 @@ pub struct OllamaTestPayload {
 
 #[tauri::command]
 pub async fn ollama_test(payload: OllamaTestPayload) -> ArgusResult<OllamaTestResult> {
-    let ollama = Ollama::new(payload.host);
+    let ollama = OllamaClient::new(payload.host);
     match ollama.ping().await {
         Ok(models) => Ok(OllamaTestResult { ok: true, models, error: None }),
         Err(e) => Ok(OllamaTestResult {
@@ -333,7 +371,7 @@ pub async fn ollama_test(payload: OllamaTestPayload) -> ArgusResult<OllamaTestRe
 pub async fn ollama_models(state: State<'_, Arc<AppState>>) -> ArgusResult<Vec<ModelTag>> {
     let host = settings::get_string(&state.db, "ollama_host")?
         .unwrap_or_else(|| "http://localhost:11434".into());
-    let ollama = Ollama::new(host);
+    let ollama = OllamaClient::new(host);
     ollama.ping().await
 }
 

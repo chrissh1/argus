@@ -6,7 +6,7 @@
 //!
 //! On query: cosine top-k via `vec_chunks MATCH ?` join.
 
-use crate::{ollama::Ollama, paths, vault::chunk, ArgusResult};
+use crate::{llm::LlmClient, paths, vault::chunk, ArgusResult};
 use rusqlite::{ffi, params, Connection};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -122,7 +122,7 @@ impl VaultIndex {
     pub async fn reindex(
         &self,
         vault_path: &Path,
-        ollama: &Ollama,
+        llm: &dyn LlmClient,
         embed_model: &str,
         mut progress: impl FnMut(u32, u32) + Send,
     ) -> ArgusResult<()> {
@@ -136,7 +136,7 @@ impl VaultIndex {
         progress(0, total);
 
         for (idx, entry) in files.iter().enumerate() {
-            self.reindex_file(entry.path(), ollama, embed_model).await?;
+            self.reindex_file(entry.path(), llm, embed_model).await?;
             progress(idx as u32 + 1, total);
         }
 
@@ -147,7 +147,7 @@ impl VaultIndex {
     pub async fn reindex_file(
         &self,
         path: &Path,
-        ollama: &Ollama,
+        llm: &dyn LlmClient,
         embed_model: &str,
     ) -> ArgusResult<()> {
         let bytes = match std::fs::read(path) {
@@ -184,7 +184,7 @@ impl VaultIndex {
         self.purge_file(&note_path)?;
 
         for (i, c) in chunks.iter().enumerate() {
-            let embedding = ollama.embed(embed_model, c).await?;
+            let embedding = llm.embed(embed_model, c).await?;
             if embedding.len() != self.dim {
                 tracing::warn!(
                     expected = self.dim,

@@ -1,6 +1,4 @@
-//! Debounced filesystem watcher that triggers incremental re-indexing.
-
-use crate::{ollama::Ollama, vault::index::VaultIndex, ArgusResult};
+use crate::{llm::LlmClient, vault::index::VaultIndex, ArgusResult};
 use notify::RecursiveMode;
 use notify_debouncer_full::{new_debouncer, DebouncedEvent};
 use std::path::PathBuf;
@@ -18,7 +16,7 @@ impl VaultWatcher {
     pub fn spawn(
         vault_root: PathBuf,
         index: Arc<VaultIndex>,
-        ollama: Arc<Ollama>,
+        llm: Arc<dyn LlmClient>,
         embed_model: String,
     ) -> ArgusResult<Self> {
         let (tx, rx) = std::sync::mpsc::channel::<Vec<DebouncedEvent>>();
@@ -35,7 +33,7 @@ impl VaultWatcher {
         debouncer.watch(&vault_root, RecursiveMode::Recursive)?;
 
         let index_clone = index.clone();
-        let ollama_clone = ollama.clone();
+        let llm_clone = llm.clone();
         let model = embed_model.clone();
         tauri::async_runtime::spawn(async move {
             while let Ok(events) = rx.recv() {
@@ -46,7 +44,7 @@ impl VaultWatcher {
                         }
                         if path.exists() {
                             if let Err(err) =
-                                index_clone.reindex_file(path, &ollama_clone, &model).await
+                                index_clone.reindex_file(path, llm_clone.as_ref(), &model).await
                             {
                                 tracing::warn!(?path, ?err, "reindex_file failed");
                             }

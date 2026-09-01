@@ -3,19 +3,20 @@
 //! All stateful work lives in Rust. The Svelte frontend talks to us only via
 //! Tauri commands (`commands::*`) and events (`events::*`).
 
-mod commands;
-mod db;
-mod error;
-mod events;
-mod ollama;
-mod paths;
-mod screenpipe;
-mod session;
-mod settings;
-mod state;
-mod synthesis;
-mod tray;
-mod vault;
+pub mod commands;
+pub mod db;
+pub mod error;
+pub mod events;
+pub mod llm;
+pub mod mock;
+pub mod paths;
+pub mod screenpipe;
+pub mod session;
+pub mod settings;
+pub mod state;
+pub mod synthesis;
+pub mod tray;
+pub mod vault;
 
 pub use error::{ArgusError, ArgusResult};
 
@@ -59,6 +60,9 @@ pub fn run() {
             commands::session_list,
             commands::session_get,
             commands::session_rename,
+            commands::dev_seed_mock_session,
+            commands::screenpipe_status,
+            commands::screenpipe_download,
             commands::settings_get_all,
             commands::settings_set,
             commands::vault_choose,

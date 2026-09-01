@@ -2,7 +2,7 @@
 
 use crate::{
     db::Db,
-    ollama::Ollama,
+    llm::ollama::OllamaClient,
     screenpipe::Screenpipe,
     session::{SessionRecord, Status},
     settings,
@@ -79,7 +79,7 @@ impl AppState {
         // If a vault is already configured, attach a watcher so the index stays warm.
         if let Some(path) = settings::get_string(&state.db, "vault_path")? {
             let settings = settings::get_all(&state.db)?;
-            let ollama = Arc::new(Ollama::new(&settings.ollama_host));
+            let ollama = Arc::new(OllamaClient::new(&settings.ollama_host));
             let watcher = VaultWatcher::spawn(
                 path.into(),
                 vault_index,
