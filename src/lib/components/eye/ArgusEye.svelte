@@ -94,7 +94,7 @@
     transform-origin: 50px 50px;
   }
   .pulse {
-    filter: drop-shadow(0 0 6px rgba(62, 200, 122, 0.35));
+    filter: drop-shadow(0 0 8px rgba(102, 135, 39, 0.45));
   }
   .breathe {
     animation: paused-breathe 4s ease-in-out infinite;

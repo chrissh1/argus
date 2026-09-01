@@ -1,36 +1,36 @@
-/* Argus design tokens — see DESIGN.md §2. */
+/* Argus design tokens — custom dark observatory palette */
 
 :root {
-  /* Surfaces */
-  --color-bg-base:        #09090D;
-  --color-bg-surface:     #111218;
-  --color-bg-elevated:    #191B24;
-  --color-bg-overlay:     #1E2130;
+  /* Surfaces (prioritizing #272931 slate and deep charcoal tones) */
+  --color-bg-base:        #18191F;   /* Deepest background */
+  --color-bg-surface:     #272931;   /* Card, sidebar, panel background */
+  --color-bg-elevated:    #32353F;   /* Hover states, active rows */
+  --color-bg-overlay:     #3D414D;   /* Modals, popovers */
 
   /* Borders */
-  --color-border-subtle:  #1E2030;
-  --color-border-default: #2A2D3A;
-  --color-border-active:  #3D4157;
+  --color-border-subtle:  #333742;   /* Subtle hairline dividers */
+  --color-border-default: #424756;   /* Component and card borders */
+  --color-border-active:  #C4B481;   /* Focused or interactive borders */
 
-  /* Text */
-  --color-text-primary:   #E4DFCF;
-  --color-text-secondary: #8B8578;
-  --color-text-tertiary:  #524F4A;
-  --color-text-inverse:   #0A0B0E;
+  /* Text (crisp white and high-contrast warm neutrals) */
+  --color-text-primary:   #FFFFFF;   /* Clean, crisp white for main text */
+  --color-text-secondary: #C8CDD8;   /* Soft slate for secondary labels */
+  --color-text-tertiary:  #7E8494;   /* Muted metadata, timestamps */
+  --color-text-inverse:   #18191F;   /* Dark text on bright accent buttons */
 
-  /* Brass — primary accent */
-  --color-brass:          #C8922A;
-  --color-brass-dim:      #7A5515;
-  --color-brass-glow:     #E5B54E;
+  /* Primary Accent (#C4B481 - Warm Sand / Gold) */
+  --color-brass:          #C4B481;
+  --color-brass-dim:      #82754D;
+  --color-brass-glow:     #DFD3A8;
 
-  /* Status */
-  --color-active:         #3EC87A;
-  --color-active-dim:     #1B5C38;
-  --color-paused:         #C8922A;
-  --color-synthesizing:   #7B6CF0;
-  --color-synthesizing-dim:#30275A;
-  --color-interrupted:    #C24444;
-  --color-obsidian:       #4E8BC0;
+  /* Status Colors */
+  --color-active:         #668727;   /* Recording — moss green */
+  --color-active-dim:     #233E1A;   /* Recording dark tint — deep forest green */
+  --color-paused:         #C4B481;   /* Paused — warm sand/brass */
+  --color-synthesizing:   #B1D1EC;   /* AI synthesizing — soft ice blue */
+  --color-synthesizing-dim:#1C2936;  /* Synthesizing background tint */
+  --color-interrupted:    #D9534F;   /* Interrupted / error */
+  --color-obsidian:       #B1D1EC;   /* Vault-related actions — ice blue */
 
   /* Fonts */
   --font-display: 'Syne', system-ui, sans-serif;
@@ -71,16 +71,16 @@
   --space-16: 64px;
 
   /* Radius */
-  --radius-sm:  3px;
-  --radius-md:  6px;
-  --radius-lg: 10px;
+  --radius-sm:  4px;
+  --radius-md:  7px;
+  --radius-lg: 11px;
 
   /* Shadow & glow */
-  --shadow-surface:    0 1px 3px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.6);
-  --shadow-elevated:   0 4px 16px rgba(0,0,0,0.7), 0 1px 4px rgba(0,0,0,0.5);
-  --shadow-float:      0 12px 40px rgba(0,0,0,0.85), 0 2px 8px rgba(0,0,0,0.6);
-  --shadow-glow-brass:  0 0 20px rgba(200,146,42,0.15);
-  --shadow-glow-active: 0 0 16px rgba(62,200,122,0.20);
+  --shadow-surface:    0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.5);
+  --shadow-elevated:   0 4px 16px rgba(0,0,0,0.6), 0 1px 4px rgba(0,0,0,0.4);
+  --shadow-float:      0 12px 40px rgba(0,0,0,0.75), 0 2px 8px rgba(0,0,0,0.5);
+  --shadow-glow-brass:  0 0 20px rgba(196,180,129,0.25);
+  --shadow-glow-active: 0 0 16px rgba(102,135,39,0.35);
 
   /* Motion */
   --duration-instant:    80ms;
