@@ -70,7 +70,10 @@ pub fn run() {
             commands::ollama_models,
             commands::exclusion_add,
             commands::exclusion_remove,
+            commands::llm_status,
             commands::open_dashboard,
+            commands::hide_menubar,
+            commands::note_read,
             commands::open_in_obsidian,
         ])
         .build(context)

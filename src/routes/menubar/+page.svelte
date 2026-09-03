@@ -1,16 +1,22 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
+  import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
   import ArgusEye from '$lib/components/eye/ArgusEye.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import Waveform from '$lib/components/ui/Waveform.svelte';
   import SessionTimer from '$lib/components/session/SessionTimer.svelte';
   import { sessionStore } from '$lib/stores/session.svelte';
+  import { settingsStore } from '$lib/stores/settings.svelte';
+  import type { OllamaTestResult } from '$lib/types';
+
+  let llmError = $state<string | null>(null);
+  let showVaultConfirm = $state(false);
 
   onMount(async () => {
     await sessionStore.ensureSubscribed();
-    await sessionStore.refresh();
+    await Promise.all([sessionStore.refresh(), settingsStore.load()]);
   });
 
   const cur = $derived(sessionStore.state.current);
@@ -26,7 +32,66 @@
   const startedAtLabel = $derived(
     cur ? new Date(cur.record.startedAt * 1000).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''
   );
+
+  async function closePopover() {
+    try {
+      await getCurrentWebviewWindow().hide();
+    } catch {
+      await invoke('hide_menubar');
+    }
+  }
+
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      closePopover();
+    }
+  }
+
+  async function handleOpenDashboard() {
+    await invoke('open_dashboard');
+    await closePopover();
+  }
+
+  async function handleStop() {
+    await sessionStore.stop();
+    await invoke('open_dashboard');
+    await closePopover();
+  }
+
+  async function tryStartSession() {
+    llmError = null;
+    try {
+      const res = await invoke<OllamaTestResult>('llm_status');
+      if (!res.ok) {
+        llmError = res.error || 'Ollama is unreachable. Please connect an LLM.';
+        return;
+      }
+    } catch (e) {
+      llmError = `Cannot reach LLM: ${e}`;
+      return;
+    }
+
+    const settings = settingsStore.state.settings;
+    if (!settings?.vaultPath && (settings?.warnMissingVault ?? true)) {
+      showVaultConfirm = true;
+      return;
+    }
+
+    await startSessionDirectly();
+  }
+
+  async function startSessionDirectly() {
+    showVaultConfirm = false;
+    llmError = null;
+    try {
+      await sessionStore.start();
+    } catch (e) {
+      llmError = String(e);
+    }
+  }
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <div class="popover" data-tauri-drag-region>
   <header class="head">
@@ -60,11 +125,38 @@
         No active session
       {/if}
     </div>
+
+    {#if llmError}
+      <div class="menubar-warning">
+        <div class="warning-title">
+          <Icon name="alert-circle" size={13} />
+          <span>LLM Disconnected</span>
+        </div>
+        <p class="warning-text">{llmError}</p>
+        <button class="warning-action" type="button" onclick={handleOpenDashboard}>
+          Open LLM Config &rarr;
+        </button>
+      </div>
+    {/if}
+
+    {#if showVaultConfirm}
+      <div class="menubar-warning vault-warn">
+        <div class="warning-title">
+          <Icon name="book-open" size={13} />
+          <span>No Vault Selected</span>
+        </div>
+        <p class="warning-text">Proceed without an Obsidian vault?</p>
+        <div class="prompt-actions">
+          <button class="prompt-btn confirm" type="button" onclick={startSessionDirectly}>Proceed</button>
+          <button class="prompt-btn cancel" type="button" onclick={() => (showVaultConfirm = false)}>Cancel</button>
+        </div>
+      </div>
+    {/if}
   </div>
 
   {#if status === 'idle' || !cur}
     <div class="actions single">
-      <Button variant="primary" full onclick={() => sessionStore.start()}>
+      <Button variant="primary" full onclick={tryStartSession}>
         {#snippet leading()}<Icon name="play" size={12} />{/snippet}
         Start Session
       </Button>
@@ -75,9 +167,15 @@
         {#snippet leading()}<Icon name="play" size={12} />{/snippet}
         Resume
       </Button>
-      <Button variant="destructive" onclick={() => sessionStore.stop()}>
+      <Button variant="destructive" onclick={handleStop}>
         {#snippet leading()}<Icon name="stop" size={12} />{/snippet}
         Stop
+      </Button>
+    </div>
+  {:else if status === 'synthesizing'}
+    <div class="actions single">
+      <Button variant="secondary" full onclick={handleOpenDashboard}>
+        View Synthesis in Dashboard
       </Button>
     </div>
   {:else}
@@ -86,7 +184,7 @@
         {#snippet leading()}<Icon name="pause" size={12} />{/snippet}
         Pause
       </Button>
-      <Button variant="destructive" onclick={() => sessionStore.stop()}>
+      <Button variant="destructive" onclick={handleStop}>
         {#snippet leading()}<Icon name="stop" size={12} />{/snippet}
         Stop
       </Button>
@@ -95,12 +193,12 @@
 
   <div class="divider"></div>
 
-  <button class="link" type="button" onclick={() => invoke('open_dashboard')}>
+  <button class="link" type="button" onclick={handleOpenDashboard}>
     <Icon name="chevron-right" size={12} />
     <span>Open Dashboard</span>
     <span class="trail"><Icon name="arrow-up-right" size={12} /></span>
   </button>
-  <button class="link" type="button" onclick={() => location.reload()}>
+  <button class="link" type="button" onclick={closePopover}>
     <Icon name="x" size={12} />
     <span>Close</span>
   </button>
@@ -188,4 +286,71 @@
   }
   .link:hover { color: var(--color-text-primary); background: var(--color-bg-elevated); }
   .link .trail { margin-left: auto; color: var(--color-text-tertiary); }
+
+  .menubar-warning {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    background: rgba(194, 68, 68, 0.12);
+    border: 1px solid rgba(194, 68, 68, 0.35);
+    text-align: left;
+    width: 100%;
+  }
+  .menubar-warning.vault-warn {
+    background: rgba(196, 180, 129, 0.12);
+    border-color: rgba(196, 180, 129, 0.35);
+  }
+  .warning-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--size-xs);
+    font-weight: 600;
+    color: var(--color-interrupted);
+  }
+  .menubar-warning.vault-warn .warning-title {
+    color: var(--color-brass);
+  }
+  .warning-text {
+    font-size: var(--size-xs);
+    color: var(--color-text-secondary);
+    margin: 4px 0 6px;
+    line-height: 1.3;
+  }
+  .warning-action {
+    display: inline-flex;
+    font-size: var(--size-xs);
+    font-weight: 600;
+    color: var(--color-brass);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
+  .warning-action:hover {
+    text-decoration: underline;
+  }
+  .prompt-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .prompt-btn {
+    flex: 1;
+    height: 26px;
+    font-size: var(--size-xs);
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    border: none;
+  }
+  .prompt-btn.confirm {
+    background: var(--color-brass);
+    color: var(--color-text-inverse);
+  }
+  .prompt-btn.cancel {
+    background: var(--color-bg-elevated);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border-subtle);
+  }
 </style>

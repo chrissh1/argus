@@ -19,9 +19,8 @@ function createStore() {
   }
 
   async function set(key: string, value: string) {
-    state.settings = await invoke<Settings>('settings_set', {
-      payload: { key, value },
-    });
+    await invoke('settings_set', { key, value });
+    await load();
   }
 
   async function chooseVault(path: string) {

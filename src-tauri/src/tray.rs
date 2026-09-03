@@ -42,6 +42,15 @@ pub fn install(app: &mut App) -> ArgusResult<()> {
         })
         .build(app)?;
 
+    if let Some(window) = app.get_webview_window("menubar") {
+        let w_clone = window.clone();
+        window.on_window_event(move |event| {
+            if let tauri::WindowEvent::Focused(false) = event {
+                let _ = w_clone.hide();
+            }
+        });
+    }
+
     Ok(())
 }
 

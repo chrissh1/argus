@@ -45,18 +45,23 @@ impl Db {
         conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.execute_batch(SCHEMA)?;
         Self::seed_defaults(&conn)?;
+        // Clean up legacy pre-seeded defaults so the user must explicitly configure their LLM
+        let _ = conn.execute(
+            "DELETE FROM settings WHERE (key = 'ollama_model' AND value = 'llama3.2') \
+             OR (key = 'embed_model' AND value = 'nomic-embed-text') \
+             OR (key = 'ollama_host' AND value = 'http://localhost:11434' AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'ollama_model'))",
+            [],
+        );
         Ok(Db { conn: Mutex::new(conn) })
     }
 
     fn seed_defaults(conn: &Connection) -> ArgusResult<()> {
         let defaults: &[(&str, &str)] = &[
-            ("ollama_host", "http://localhost:11434"),
-            ("ollama_model", "llama3.2"),
-            ("embed_model", "nomic-embed-text"),
             ("data_retention_days", "30"),
             ("similarity_threshold", "0.75"),
             ("min_session_seconds", "60"),
             ("exclusion_list", "[]"),
+            ("warn_missing_vault", "true"),
         ];
         for (k, v) in defaults {
             conn.execute(
@@ -65,6 +70,14 @@ impl Db {
             )?;
         }
         Ok(())
+    }
+
+    #[cfg(test)]
+    pub fn open_in_memory() -> ArgusResult<Self> {
+        let conn = Connection::open_in_memory()?;
+        conn.execute_batch(SCHEMA)?;
+        Self::seed_defaults(&conn)?;
+        Ok(Db { conn: Mutex::new(conn) })
     }
 
     pub fn with_conn<R>(&self, f: impl FnOnce(&Connection) -> ArgusResult<R>) -> ArgusResult<R> {

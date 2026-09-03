@@ -44,13 +44,14 @@ export interface ExclusionEntry {
 
 export interface Settings {
   vaultPath: string | null;
-  ollamaHost: string;
-  ollamaModel: string;
-  embedModel: string;
+  ollamaHost: string | null;
+  ollamaModel: string | null;
+  embedModel: string | null;
   dataRetentionDays: number;
   similarityThreshold: number;
   minSessionSeconds: number;
   exclusionList: ExclusionEntry[];
+  warnMissingVault: boolean;
 }
 
 export interface IndexStatus {

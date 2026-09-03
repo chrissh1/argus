@@ -9,13 +9,14 @@ use std::collections::BTreeMap;
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
     pub vault_path: Option<String>,
-    pub ollama_host: String,
-    pub ollama_model: String,
-    pub embed_model: String,
+    pub ollama_host: Option<String>,
+    pub ollama_model: Option<String>,
+    pub embed_model: Option<String>,
     pub data_retention_days: u32,
     pub similarity_threshold: f32,
     pub min_session_seconds: u32,
     pub exclusion_list: Vec<ExclusionEntry>,
+    pub warn_missing_vault: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,13 +31,16 @@ pub fn get_all(db: &Db) -> ArgusResult<Settings> {
         vault_path: map.get("vault_path").cloned(),
         ollama_host: map
             .get("ollama_host")
-            .cloned()
-            .unwrap_or_else(|| "http://localhost:11434".into()),
-        ollama_model: map.get("ollama_model").cloned().unwrap_or_else(|| "llama3.2".into()),
+            .filter(|s| !s.trim().is_empty())
+            .cloned(),
+        ollama_model: map
+            .get("ollama_model")
+            .filter(|s| !s.trim().is_empty())
+            .cloned(),
         embed_model: map
             .get("embed_model")
-            .cloned()
-            .unwrap_or_else(|| "nomic-embed-text".into()),
+            .filter(|s| !s.trim().is_empty())
+            .cloned(),
         data_retention_days: map
             .get("data_retention_days")
             .and_then(|s| s.parse().ok())
@@ -53,6 +57,10 @@ pub fn get_all(db: &Db) -> ArgusResult<Settings> {
             .get("exclusion_list")
             .and_then(|s| serde_json::from_str(s).ok())
             .unwrap_or_default(),
+        warn_missing_vault: map
+            .get("warn_missing_vault")
+            .map(|s| s != "false" && s != "0")
+            .unwrap_or(true),
     })
 }
 
@@ -106,4 +114,37 @@ fn read_map(db: &Db) -> ArgusResult<BTreeMap<String, String>> {
         }
         Ok(map)
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_warn_missing_vault_default() {
+        let db = Db::open_in_memory().unwrap();
+        let s = get_all(&db).unwrap();
+        assert!(s.warn_missing_vault, "warn_missing_vault should default to true");
+    }
+
+    #[test]
+    fn test_warn_missing_vault_toggle() {
+        let db = Db::open_in_memory().unwrap();
+        set_string(&db, "warn_missing_vault", "false").unwrap();
+        let s = get_all(&db).unwrap();
+        assert!(!s.warn_missing_vault, "warn_missing_vault should be false after updating");
+
+        set_string(&db, "warn_missing_vault", "true").unwrap();
+        let s2 = get_all(&db).unwrap();
+        assert!(s2.warn_missing_vault, "warn_missing_vault should be true after updating back");
+    }
+
+    #[test]
+    fn test_llm_fields_no_defaults() {
+        let db = Db::open_in_memory().unwrap();
+        let s = get_all(&db).unwrap();
+        assert!(s.ollama_host.is_none(), "ollama_host should be None by default");
+        assert!(s.ollama_model.is_none(), "ollama_model should be None by default");
+        assert!(s.embed_model.is_none(), "embed_model should be None by default");
+    }
 }

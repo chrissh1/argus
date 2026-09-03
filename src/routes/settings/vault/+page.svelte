@@ -89,6 +89,20 @@
       </Button>
     </div>
   </section>
+
+  <section>
+    <div class="label">Session Warnings</div>
+    <Field label="Missing vault confirmation" hint="Prompt for confirmation before starting a session if no Obsidian vault is selected.">
+      <label class="toggle-label">
+        <input
+          type="checkbox"
+          checked={settingsStore.state.settings?.warnMissingVault ?? true}
+          onchange={(e) => settingsStore.set('warn_missing_vault', String((e.target as HTMLInputElement).checked))}
+        />
+        <span>Warn before starting a session without an Obsidian vault</span>
+      </label>
+    </Field>
+  </section>
 </Panel>
 
 <style>
@@ -119,4 +133,19 @@
   }
   .progress { margin-top: 12px; }
   .reindex { margin-top: 14px; }
+  .toggle-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--font-body);
+    font-size: var(--size-sm);
+    color: var(--color-text-primary);
+    cursor: pointer;
+  }
+  .toggle-label input[type="checkbox"] {
+    accent-color: var(--color-brass);
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+  }
 </style>

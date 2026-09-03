@@ -27,6 +27,52 @@ pub async fn session_start(
 ) -> ArgusResult<SessionRecord> {
     state.require_idle()?;
     let settings = settings::get_all(&state.db)?;
+
+    let host = settings
+        .ollama_host
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| {
+            ArgusError::Other(
+                "Cannot start session: No LLM host configured. Please configure your LLM in Settings.".into(),
+            )
+        })?;
+
+    let model = settings
+        .ollama_model
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| {
+            ArgusError::Other(
+                "Cannot start session: No inference model selected. Please select an installed model in Settings.".into(),
+            )
+        })?;
+
+    // Crucial pipeline requirement: ensure LLM host is reachable and configured model is installed
+    let ollama = OllamaClient::new(host);
+    let installed_models = ollama.ping().await.map_err(|e| {
+        ArgusError::Other(format!(
+            "Cannot start session: Unable to reach Ollama at {}. Error: {}",
+            host, e
+        ))
+    })?;
+
+    let is_installed = installed_models.iter().any(|m| model_matches(model, &m.name));
+    if !is_installed {
+        let names: Vec<&str> = installed_models.iter().map(|m| m.name.as_str()).collect();
+        let available_str = if names.is_empty() {
+            "none (no models downloaded in Ollama)".to_string()
+        } else {
+            names.join(", ")
+        };
+        return Err(ArgusError::Other(format!(
+            "Cannot start session: Model '{}' is not installed in Ollama (Installed: {}). Run 'ollama pull {}' or choose an installed model in Settings.",
+            model, available_str, model
+        )));
+    }
+
     let record = session::create(&state.db, settings.data_retention_days)?;
 
     let raw_db = paths::session_raw_db(&record.id)?;
@@ -250,24 +296,28 @@ pub async fn vault_choose(
     settings::set_string(&state.db, "vault_path", &path)?;
     let settings = settings::get_all(&state.db)?;
 
-    let ollama: Arc<dyn LlmClient> = Arc::new(OllamaClient::new(&settings.ollama_host));
-    let watcher = VaultWatcher::spawn(
-        p.clone(),
-        state.vault_index.clone(),
-        ollama,
-        settings.embed_model.clone(),
-    )?;
-    *state.vault_watcher.lock().unwrap() = Some(watcher);
+    if let (Some(host), Some(embed)) = (&settings.ollama_host, &settings.embed_model) {
+        let ollama: Arc<dyn LlmClient> = Arc::new(OllamaClient::new(host));
+        let watcher = VaultWatcher::spawn(
+            p.clone(),
+            state.vault_index.clone(),
+            ollama,
+            embed.clone(),
+        )?;
+        *state.vault_watcher.lock().unwrap() = Some(watcher);
+    }
 
-    // Kick off initial indexing in the background.
-    let app_clone = app.clone();
-    let state_arc = Arc::clone(&*state);
-    let settings_clone = settings.clone();
-    tauri::async_runtime::spawn(async move {
-        if let Err(e) = run_reindex(app_clone, state_arc, settings_clone).await {
-            tracing::error!(?e, "initial vault index failed");
-        }
-    });
+    // Kick off initial indexing in the background if LLM is configured.
+    if settings.ollama_host.is_some() && settings.embed_model.is_some() {
+        let app_clone = app.clone();
+        let state_arc = Arc::clone(&*state);
+        let settings_clone = settings.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(e) = run_reindex(app_clone, state_arc, settings_clone).await {
+                tracing::error!(?e, "initial vault index failed");
+            }
+        });
+    }
 
     Ok(settings)
 }
@@ -296,13 +346,22 @@ async fn run_reindex(
         .vault_path
         .clone()
         .ok_or(ArgusError::PathNotConfigured("vault_path"))?;
+    let host = settings
+        .ollama_host
+        .as_deref()
+        .ok_or(ArgusError::PathNotConfigured("ollama_host"))?;
+    let embed = settings
+        .embed_model
+        .as_deref()
+        .ok_or(ArgusError::PathNotConfigured("embed_model"))?;
+
     {
         let mut p = state.indexing.lock().unwrap();
         p.active = true;
         p.current = 0;
         p.total = 0;
     }
-    let ollama = OllamaClient::new(&settings.ollama_host);
+    let ollama = OllamaClient::new(host);
     let app_for_cb = app.clone();
     let state_for_cb = state.clone();
     let res = state
@@ -310,7 +369,7 @@ async fn run_reindex(
         .reindex(
             std::path::Path::new(&vault_path),
             &ollama,
-            &settings.embed_model,
+            embed,
             move |cur, total| {
                 events::emit_index_progress(&app_for_cb, cur, total);
                 let mut p = state_for_cb.indexing.lock().unwrap();
@@ -341,6 +400,26 @@ pub async fn vault_index_status(
 
 // ---------------- Ollama ----------------
 
+pub fn model_matches(configured: &str, installed: &str) -> bool {
+    let conf = configured.trim();
+    let inst = installed.trim();
+    if conf.eq_ignore_ascii_case(inst) {
+        return true;
+    }
+    if !conf.contains(':') {
+        let with_latest = format!("{conf}:latest");
+        if with_latest.eq_ignore_ascii_case(inst) {
+            return true;
+        }
+    }
+    if let Some((base, _)) = inst.split_once(':') {
+        if conf.eq_ignore_ascii_case(base) {
+            return true;
+        }
+    }
+    false
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OllamaTestResult {
@@ -352,25 +431,62 @@ pub struct OllamaTestResult {
 #[derive(Debug, Deserialize)]
 pub struct OllamaTestPayload {
     pub host: String,
+    pub model: Option<String>,
 }
 
 #[tauri::command]
 pub async fn ollama_test(payload: OllamaTestPayload) -> ArgusResult<OllamaTestResult> {
-    let ollama = OllamaClient::new(payload.host);
-    match ollama.ping().await {
-        Ok(models) => Ok(OllamaTestResult { ok: true, models, error: None }),
-        Err(e) => Ok(OllamaTestResult {
+    let host = payload.host.trim();
+    if host.is_empty() {
+        return Ok(OllamaTestResult {
             ok: false,
             models: vec![],
-            error: Some(e.to_string()),
-        }),
+            error: Some("Please enter an Ollama host URL.".into()),
+        });
     }
+    let ollama = OllamaClient::new(host);
+    let models = match ollama.ping().await {
+        Ok(m) => m,
+        Err(e) => {
+            return Ok(OllamaTestResult {
+                ok: false,
+                models: vec![],
+                error: Some(format!("Failed to connect to Ollama at {host}: {e}")),
+            });
+        }
+    };
+
+    if let Some(model) = payload.model.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        if !models.iter().any(|m| model_matches(model, &m.name)) {
+            let names: Vec<&str> = models.iter().map(|m| m.name.as_str()).collect();
+            let available_str = if names.is_empty() {
+                "no models installed".to_string()
+            } else {
+                names.join(", ")
+            };
+            return Ok(OllamaTestResult {
+                ok: false,
+                models,
+                error: Some(format!(
+                    "Connected to Ollama, but model '{model}' is not installed (Available: {available_str}). Run 'ollama pull {model}' to install."
+                )),
+            });
+        }
+    }
+
+    Ok(OllamaTestResult {
+        ok: true,
+        models,
+        error: None,
+    })
 }
 
 #[tauri::command]
 pub async fn ollama_models(state: State<'_, Arc<AppState>>) -> ArgusResult<Vec<ModelTag>> {
-    let host = settings::get_string(&state.db, "ollama_host")?
-        .unwrap_or_else(|| "http://localhost:11434".into());
+    let settings = settings::get_all(&state.db)?;
+    let Some(host) = settings.ollama_host.filter(|s| !s.trim().is_empty()) else {
+        return Ok(vec![]);
+    };
     let ollama = OllamaClient::new(host);
     ollama.ping().await
 }
@@ -401,6 +517,66 @@ pub async fn exclusion_remove(
     Ok(list)
 }
 
+#[tauri::command]
+pub async fn llm_status(state: State<'_, Arc<AppState>>) -> ArgusResult<OllamaTestResult> {
+    let settings = settings::get_all(&state.db)?;
+    let host = match settings.ollama_host.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        Some(h) => h,
+        None => {
+            return Ok(OllamaTestResult {
+                ok: false,
+                models: vec![],
+                error: Some("No LLM host configured. Please configure your LLM in Settings.".into()),
+            });
+        }
+    };
+
+    let ollama = OllamaClient::new(host);
+    let models = match ollama.ping().await {
+        Ok(m) => m,
+        Err(e) => {
+            return Ok(OllamaTestResult {
+                ok: false,
+                models: vec![],
+                error: Some(format!("Cannot reach Ollama at {host}: {e}")),
+            });
+        }
+    };
+
+    let model = match settings.ollama_model.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        Some(m) => m,
+        None => {
+            return Ok(OllamaTestResult {
+                ok: false,
+                models,
+                error: Some("No inference model selected. Please select an installed model in Settings.".into()),
+            });
+        }
+    };
+
+    if !models.iter().any(|m| model_matches(model, &m.name)) {
+        let names: Vec<&str> = models.iter().map(|m| m.name.as_str()).collect();
+        let available_str = if names.is_empty() {
+            "none (no models downloaded)".to_string()
+        } else {
+            names.join(", ")
+        };
+        return Ok(OllamaTestResult {
+            ok: false,
+            models,
+            error: Some(format!(
+                "Model '{model}' is not installed in Ollama (Available: {available_str}). Run 'ollama pull {model}' or select an installed model in Settings."
+            )),
+        });
+    }
+
+    Ok(OllamaTestResult {
+        ok: true,
+        models,
+        error: None,
+    })
+}
+
 // ---------------- Window helpers ----------------
 
 #[tauri::command]
@@ -410,6 +586,23 @@ pub async fn open_dashboard(app: AppHandle) -> ArgusResult<()> {
         let _ = w.set_focus();
     }
     Ok(())
+}
+
+#[tauri::command]
+pub async fn hide_menubar(app: AppHandle) -> ArgusResult<()> {
+    if let Some(w) = app.get_webview_window("menubar") {
+        let _ = w.hide();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn note_read(path: String) -> ArgusResult<String> {
+    let p = std::path::Path::new(&path);
+    if !p.is_file() {
+        return Err(ArgusError::Other(format!("Note file not found: {path}")));
+    }
+    std::fs::read_to_string(p).map_err(|e| ArgusError::Other(format!("Failed to read note {path}: {e}")))
 }
 
 #[tauri::command]

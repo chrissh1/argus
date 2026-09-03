@@ -9,12 +9,25 @@
   interface Props { session: SessionRecord; }
   let { session = $bindable() }: Props = $props();
 
-  import { tick } from 'svelte';
+  import { tick, onMount } from 'svelte';
+  import { settingsStore } from '$lib/stores/settings.svelte';
 
   let editing = $state(false);
   let titleInput = $state(session.displayName ?? session.id);
   let titleEl = $state<HTMLInputElement | null>(null);
   let checks = $state<boolean[]>(session.actionItems.map(() => false));
+
+  let expandedNote = $state<string | null>(null);
+  let noteContents = $state<Record<string, string>>({});
+  let loadingNote = $state(false);
+
+  onMount(async () => {
+    if (!settingsStore.state.loaded) {
+      await settingsStore.load();
+    }
+  });
+
+  const hasVault = $derived(Boolean(settingsStore.state.settings?.vaultPath));
 
   async function beginEdit() {
     editing = true;
@@ -32,7 +45,27 @@
   }
 
   async function openInObsidian(path?: string) {
+    if (!hasVault) return;
     await invoke('open_in_obsidian', { notePath: path ?? null });
+  }
+
+  async function toggleNoteContent(path: string) {
+    if (expandedNote === path) {
+      expandedNote = null;
+      return;
+    }
+    expandedNote = path;
+    if (!noteContents[path]) {
+      loadingNote = true;
+      try {
+        const text = await invoke<string>('note_read', { path });
+        noteContents[path] = text;
+      } catch (e) {
+        noteContents[path] = `Unable to load note content: ${e}`;
+      } finally {
+        loadingNote = false;
+      }
+    }
   }
 </script>
 
@@ -73,7 +106,7 @@
     </div>
     <div class="stat">
       <div class="num display">{session.vaultFilesAffected.length}</div>
-      <div class="lab">Notes Updated</div>
+      <div class="lab">{hasVault ? 'Notes Updated' : 'Notes Generated'}</div>
     </div>
     <div class="stat">
       <div class="num display">{session.actionItems.length}</div>
@@ -110,29 +143,57 @@
 
   {#if session.vaultFilesAffected.length}
     <section>
-      <div class="section-label">Vault Notes Affected</div>
+      <div class="section-label">{hasVault ? 'Vault Notes Affected' : 'Generated Notes Summary'}</div>
       <div class="files">
         {#each session.vaultFilesAffected as f}
-          <button class="file" type="button" onclick={() => openInObsidian(f.path)}>
-            <div class="file-line">
-              <span class="arrow">↳</span>
-              <span class="path mono">{basename(f.path)}</span>
-              <span class="action">{f.action}</span>
+          {#if hasVault}
+            <button class="file clickable" type="button" onclick={() => openInObsidian(f.path)}>
+              <div class="file-line">
+                <span class="arrow">↳</span>
+                <span class="path mono">{basename(f.path)}</span>
+                <span class="action">{f.action}</span>
+              </div>
+              {#if f.summary}
+                <div class="summary">{f.summary}</div>
+              {/if}
+            </button>
+          {:else}
+            <div class="file static">
+              <div class="file-line">
+                <span class="arrow">↳</span>
+                <span class="path mono">{basename(f.path)}</span>
+                <span class="action badge-pill">generated</span>
+              </div>
+              {#if f.summary}
+                <div class="summary highlight-summary">{f.summary}</div>
+              {/if}
+              {#if expandedNote === f.path}
+                <div class="note-preview">
+                  {#if loadingNote}
+                    <div class="note-loading">Loading note…</div>
+                  {:else}
+                    <pre class="note-content">{noteContents[f.path] || 'No content'}</pre>
+                  {/if}
+                </div>
+              {/if}
+              <button class="expand-btn" type="button" onclick={() => toggleNoteContent(f.path)}>
+                <Icon name={expandedNote === f.path ? "chevron-down" : "chevron-right"} size={11} />
+                <span>{expandedNote === f.path ? 'Hide full note' : 'View full note'}</span>
+              </button>
             </div>
-            {#if f.summary}
-              <div class="summary">{f.summary}</div>
-            {/if}
-          </button>
+          {/if}
         {/each}
       </div>
     </section>
   {/if}
 
   <div class="actions">
-    <Button variant="secondary" onclick={() => openInObsidian()}>
-      {#snippet leading()}<Icon name="arrow-up-right" size={14} />{/snippet}
-      Open in Obsidian
-    </Button>
+    {#if hasVault}
+      <Button variant="secondary" onclick={() => openInObsidian()}>
+        {#snippet leading()}<Icon name="arrow-up-right" size={14} />{/snippet}
+        Open in Obsidian
+      </Button>
+    {/if}
     <Button variant="primary" onclick={() => goto('/')}>Start New Session</Button>
   </div>
 </div>
@@ -336,5 +397,69 @@
     justify-content: flex-end;
     gap: 10px;
     margin-top: 24px;
+  }
+
+  .file.clickable {
+    cursor: pointer;
+  }
+  .file.static {
+    cursor: default;
+  }
+  .file.static:hover {
+    background: var(--color-bg-surface);
+  }
+  .badge-pill {
+    padding: 1px 8px;
+    background: rgba(196, 180, 129, 0.15);
+    color: var(--color-brass);
+    border-radius: 10px;
+    font-size: var(--size-2xs);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .highlight-summary {
+    color: var(--color-text-primary);
+    font-size: var(--size-sm);
+    line-height: 1.5;
+  }
+  .expand-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    padding: 6px 0 0;
+    color: var(--color-brass);
+    font-family: var(--font-body);
+    font-size: var(--size-xs);
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity var(--duration-fast);
+  }
+  .expand-btn:hover {
+    opacity: 0.8;
+  }
+  .note-preview {
+    margin-top: 10px;
+    padding: 12px;
+    background: var(--color-bg-base);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+    animation: panel-in var(--duration-fast) var(--ease-default);
+  }
+  .note-content {
+    font-family: var(--font-mono);
+    font-size: var(--size-xs);
+    color: var(--color-text-secondary);
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 0;
+    max-height: 280px;
+    overflow-y: auto;
+  }
+  .note-loading {
+    font-family: var(--font-body);
+    font-size: var(--size-xs);
+    color: var(--color-text-tertiary);
   }
 </style>

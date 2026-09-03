@@ -6,6 +6,7 @@
   import SynthesisProgress from './SynthesisProgress.svelte';
   import { goto } from '$app/navigation';
   import { invoke } from '@tauri-apps/api/core';
+  import { settingsStore } from '$lib/stores/settings.svelte';
   import { formatDateLong, formatTimeRange, formatDurationLong, basename } from '$lib/format';
 
   interface Props {
@@ -16,6 +17,8 @@
   let { session, synth = null }: Props = $props();
 
   let expanded = $state(false);
+
+  const hasVault = $derived(Boolean(settingsStore.state.settings?.vaultPath));
 
   const isSynthesizing = $derived(session.status === 'synthesizing');
   const dotTone = $derived(
@@ -28,6 +31,7 @@
   const title = $derived(session.displayName || session.id);
 
   async function openInObsidian(path?: string) {
+    if (!hasVault) return;
     await invoke('open_in_obsidian', { notePath: path ?? null });
   }
   function viewSummary() {
@@ -82,13 +86,13 @@
 
       {#if session.vaultFilesAffected.length}
         <section>
-          <div class="section-label">Vault Notes</div>
+          <div class="section-label">{hasVault ? 'Vault Notes' : 'Generated Notes'}</div>
           <ul class="files">
             {#each session.vaultFilesAffected as f}
               <li>
                 <span class="arrow">↳</span>
                 <span class="path mono">{basename(f.path)}</span>
-                <span class="action">· {f.action}</span>
+                <span class="action">· {hasVault ? f.action : 'generated'}</span>
               </li>
             {/each}
           </ul>
@@ -97,10 +101,12 @@
 
       <div class="actions">
         <Button variant="ghost" onclick={viewSummary}>View Summary</Button>
-        <Button variant="secondary" onclick={() => openInObsidian()}>
-          {#snippet leading()}<Icon name="arrow-up-right" size={14} />{/snippet}
-          Open in Obsidian
-        </Button>
+        {#if hasVault}
+          <Button variant="secondary" onclick={() => openInObsidian()}>
+            {#snippet leading()}<Icon name="arrow-up-right" size={14} />{/snippet}
+            Open in Obsidian
+          </Button>
+        {/if}
       </div>
     </div>
   {/if}

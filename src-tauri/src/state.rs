@@ -80,14 +80,16 @@ impl AppState {
         if let Some(path) = settings::get_string(&state.db, "vault_path")? {
             crate::vault::writer::clean_orphaned_temp_files(std::path::Path::new(&path));
             let settings = settings::get_all(&state.db)?;
-            let ollama = Arc::new(OllamaClient::new(&settings.ollama_host));
-            let watcher = VaultWatcher::spawn(
-                path.into(),
-                vault_index,
-                ollama,
-                settings.embed_model.clone(),
-            )?;
-            *state.vault_watcher.lock().unwrap() = Some(watcher);
+            if let (Some(host), Some(embed)) = (&settings.ollama_host, &settings.embed_model) {
+                let ollama = Arc::new(OllamaClient::new(host));
+                let watcher = VaultWatcher::spawn(
+                    path.into(),
+                    vault_index,
+                    ollama,
+                    embed.clone(),
+                )?;
+                *state.vault_watcher.lock().unwrap() = Some(watcher);
+            }
         }
 
         Ok(state)

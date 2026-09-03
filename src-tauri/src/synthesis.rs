@@ -19,7 +19,7 @@ use crate::{
     settings,
     state::AppState,
     vault::{index::VaultIndex, writer},
-    ArgusResult,
+    ArgusError, ArgusResult,
 };
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -98,7 +98,16 @@ pub async fn synthesize(
     events::emit_step(&app, &session_id, "starting", "Preparing synthesis…", 0, 6);
 
     let settings = settings::get_all(&state.db)?;
-    let llm_client: Arc<dyn LlmClient> = Arc::new(OllamaClient::new(&settings.ollama_host));
+    let host = settings
+        .ollama_host
+        .as_deref()
+        .ok_or_else(|| ArgusError::Other("Cannot synthesize: Ollama host not configured".into()))?;
+    let model = settings
+        .ollama_model
+        .as_deref()
+        .ok_or_else(|| ArgusError::Other("Cannot synthesize: Inference model not configured".into()))?;
+
+    let llm_client: Arc<dyn LlmClient> = Arc::new(OllamaClient::new(host));
     let raw_db_path = paths::session_raw_db(&session_id)?;
 
     // Step 1 — temporal pairing
@@ -117,7 +126,7 @@ pub async fn synthesize(
     );
     let extraction = extract_concepts_map_reduce(
         llm_client.as_ref(),
-        &settings.ollama_model,
+        model,
         &timeline,
     )
     .await?;
@@ -152,7 +161,7 @@ pub async fn synthesize(
     for (concept, candidates) in extraction.concepts.iter().zip(candidates_per_concept.iter()) {
         let d = decide_append_or_new(
             llm_client.as_ref(),
-            &settings.ollama_model,
+            model,
             concept,
             candidates,
         )
@@ -196,10 +205,17 @@ pub async fn synthesize(
                         decision.section_heading.as_deref(),
                         &decision.body,
                     )?;
+                    let note_summary = decision
+                        .summary
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                        .map(str::to_string)
+                        .or_else(|| Some(concept.summary.clone()));
                     files_affected.push(VaultFileAffected {
                         path: written.to_string_lossy().to_string(),
                         action: VaultAction::Appended,
-                        summary: decision.summary.clone(),
+                        summary: note_summary,
                     });
                 }
             }
@@ -217,10 +233,17 @@ pub async fn synthesize(
                     &concept.tags,
                     &session_id,
                 )?;
+                let note_summary = decision
+                    .summary
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string)
+                    .or_else(|| Some(concept.summary.clone()));
                 files_affected.push(VaultFileAffected {
                     path: written.to_string_lossy().to_string(),
                     action: VaultAction::Created,
-                    summary: decision.summary.clone(),
+                    summary: note_summary,
                 });
             }
         }
@@ -525,10 +548,16 @@ async fn retrieve_candidates(
     let mut all = Vec::with_capacity(concepts.len());
     for c in concepts {
         let query = format!("{}\n\n{}", c.label, c.summary);
-        let emb = match client.embed(&settings.embed_model, &query).await {
-            Ok(v) => v,
-            Err(e) => {
-                tracing::warn!(?e, "embed failed; treating as no candidates");
+        let emb = match settings.embed_model.as_deref() {
+            Some(embed_m) => match client.embed(embed_m, &query).await {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::warn!(?e, "embed failed; treating as no candidates");
+                    all.push(vec![]);
+                    continue;
+                }
+            },
+            None => {
                 all.push(vec![]);
                 continue;
             }
